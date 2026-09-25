@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meeting Summarizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FFFFFF; --bg:#F7F7F1; --ink:#1B3B2F; --ink-soft:#5B6F63;
+    --green:#2F6B4F; --green-deep:#173226; --tint:#E4F1E7; --line:#DCE3DC; --stamp:#B4482F;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Space Grotesk',sans-serif;padding:44px 20px 80px;}
+  .wrap{max-width:700px;margin:0 auto;}
+  h1{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(30px,6vw,42px);margin:0 0 10px;color:var(--green-deep);}
+  .sub{color:var(--ink-soft);font-size:15px;max-width:46ch;line-height:1.55;}
+  .kicker{font-size:12px;color:var(--green);letter-spacing:.08em;margin:0 0 10px;font-weight:600;}
+  .page{background:var(--paper);border-radius:14px;border:1px solid var(--line);padding:26px;margin:20px 0 30px;}
+  label{display:block;font-family:'Fraunces',serif;font-weight:600;font-size:17px;margin-bottom:12px;color:var(--green-deep);}
+  textarea{width:100%;min-height:150px;border:1px solid var(--line);border-radius:8px;padding:14px 16px;font-size:14.5px;line-height:1.7;background:var(--tint);color:var(--ink);}
+  .hint{font-size:12.5px;color:var(--ink-soft);margin-top:10px;}
+  .entry{background:var(--paper);border-radius:12px;border:1px solid var(--line);margin-bottom:16px;overflow:hidden;}
+  .entry-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;gap:12px;}
+  .entry-head h2{font-family:'Fraunces',serif;font-weight:600;font-size:17px;margin:0;color:var(--green-deep);}
+  .entry-head p{margin:2px 0 0;font-size:13px;color:var(--ink-soft);}
+  button{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;border-radius:999px;border:1.5px solid var(--green);background:var(--paper);color:var(--green-deep);padding:9px 16px;cursor:pointer;white-space:nowrap;}
+  button:hover{background:var(--tint);}
+  button:disabled{opacity:.45;}
+  .entry-body{border-top:1px solid var(--line);padding:16px 18px;font-family:'Fraunces',serif;font-size:15px;line-height:1.7;white-space:pre-wrap;display:none;}
+  .entry-body.show{display:block;}
+  .empty{color:#8A9C92;font-style:italic;font-family:'Space Grotesk',sans-serif;font-size:13px;}
+  .decision-item{display:flex;gap:12px;margin-bottom:10px;}
+  .stamp{flex-shrink:0;width:56px;height:56px;border-radius:50%;border:2px solid var(--stamp);color:var(--stamp);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;text-align:center;transform:rotate(-9deg);opacity:.85;}
+  .action-row{border-bottom:1px solid var(--line);padding:10px 0;display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:baseline;}
+  .action-owner{font-size:12.5px;color:var(--green);font-family:'Space Grotesk',sans-serif;}
+  .action-due{font-size:12.5px;color:var(--ink-soft);font-family:'Space Grotesk',sans-serif;}
+  .email-subject{font-weight:600;margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--line);}
+  #status{font-size:13px;color:var(--stamp);margin-top:10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="kicker">LOCAL BACKEND</p>
+  <h1>Meeting Summarizer</h1>
+  <p class="sub">Talks to your backend at http://localhost:3000 — make sure "npm start" is running in Command Prompt first.</p>
+
+  <div class="page">
+    <label for="notes">Meeting notes</label>
+    <textarea id="notes" placeholder="e.g. Sarah to send numbers by Friday. Agreed to delay launch to Oct 15."></textarea>
+    <p class="hint">Rough bullets are fine.</p>
+    <p id="status"></p>
+  </div>
+
+  <div class="entry">
+    <div class="entry-head">
+      <div><h2>Minutes of Meeting</h2><p>Narrative summary</p></div>
+      <button data-endpoint="minutes" data-key="minutes">Create Minutes</button>
+    </div>
+    <div class="entry-body" id="out-minutes"></div>
+  </div>
+
+  <div class="entry">
+    <div class="entry-head">
+      <div><h2>Decisions Made</h2><p>What was agreed</p></div>
+      <button data-endpoint="decisions" data-key="decisions">Extract Decisions</button>
+    </div>
+    <div class="entry-body" id="out-decisions"></div>
+  </div>
+
+  <div class="entry">
+    <div class="entry-head">
+      <div><h2>Follow-ups</h2><p>Action items, owners &amp; dates</p></div>
+      <button data-endpoint="action-items" data-key="items">Extract Action Items</button>
+    </div>
+    <div class="entry-body" id="out-action-items"></div>
+  </div>
+
+  <div class="entry">
+    <div class="entry-head">
+      <div><h2>Follow-up Email</h2><p>Ready to send</p></div>
+      <button data-endpoint="email" data-key="email">Draft Email</button>
+    </div>
+    <div class="entry-body" id="out-email"></div>
+  </div>
+</div>
+
+<script>
+const BASE = 'http://localhost:3000';
+
+function esc(s){ return (s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+async function run(btn){
+  const endpoint = btn.dataset.endpoint;
+  const notes = document.getElementById('notes').value.trim();
+  const outId = 'out-' + endpoint;
+  const out = document.getElementById(outId);
+  const status = document.getElementById('status');
+  status.textContent = '';
+  if(!notes){ out.innerHTML = '<span class="empty">Add some notes first.</span>'; out.classList.add('show'); return; }
+
+  const old = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Working…';
+
+  try{
+    const res = await fetch(`${BASE}/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes }),
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'Request failed');
+
+    if(endpoint === 'minutes'){
+      out.innerHTML = esc(data.minutes).replace(/\n/g,'<br>');
+    } else if(endpoint === 'decisions'){
+      const d = data.decisions || [];
+      out.innerHTML = d.length ? d.map(x=>`<div class="decision-item"><div class="stamp">DECIDED</div><div style="padding-top:6px">${esc(x)}</div></div>`).join('') : '<span class="empty">No decisions found.</span>';
+    } else if(endpoint === 'action-items'){
+      const items = data.items || [];
+      out.innerHTML = items.length ? items.map(it=>`<div class="action-row"><div>${esc(it.task)}</div><div class="action-owner">${esc(it.owner||'Unassigned')}</div><div class="action-due">${esc(it.due||'Not specified')}</div></div>`).join('') : '<span class="empty">No follow-ups found.</span>';
+    } else if(endpoint === 'email'){
+      out.innerHTML = `<div class="email-subject">${esc(data.subject)}</div>${esc(data.body).replace(/\n/g,'<br>')}`;
+    }
+    out.classList.add('show');
+  } catch(err){
+    status.textContent = 'Error: ' + err.message + ' — is the backend running? (npm start in Command Prompt)';
+  }
+  btn.disabled = false; btn.textContent = old;
+}
+
+document.querySelectorAll('button[data-endpoint]').forEach(btn=>{
+  btn.addEventListener('click', ()=>run(btn));
+});
+</script>
+</body>
+</html>
